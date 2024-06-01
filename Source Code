@@ -1,0 +1,663 @@
+#(a) Which county had the upward trend of Amebiasis disease regardless of gender? (You are required to create a suitable plot to support the statistical analysis)
+# How to extract suitable subsets of data?
+
+# Load required libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx"
+
+# Try-catch block
+tryCatch({
+    # Load the dataset
+    data <- read_excel(file_path)
+    print("Data Loaded Successfully.")
+    
+    # Filter the dataset for Amebiasis disease
+    amebiasis_data <- data %>% filter(Disease == 'Amebiasis')
+    print("Filter Applied:")
+    print(head(amebiasis_data))
+    
+    # Aggregate the data by 'County' and 'Year', summing up the 'Count' across all genders
+    amebiasis_aggregated <- amebiasis_data %>%
+        group_by(County, Year) %>%
+        summarise(Count = sum(Count)) %>%
+        ungroup()
+    print("Aggregation Done:")
+    print(head(amebiasis_aggregated))
+    
+    # Initialize a list to store the slope (rate of change) for each county
+    trends <- list()
+    
+    # Loop over each county and perform linear regression on year vs count
+    unique_counties <- unique(amebiasis_aggregated$County)
+    
+    for (county in unique_counties) {
+        county_data <- amebiasis_aggregated %>% filter(County == county)
+        model <- lm(Count ~ Year, data = county_data)
+        trends[[county]] <- coef(model)["Year"]
+    }
+    
+    # Plotting
+    plot_data <- data.frame()
+    
+    for (county in names(trends)) {
+        if (trends[[county]] > 0) {  # Plot only counties with an upward trend
+            county_data <- amebiasis_aggregated %>% filter(County == county)
+            county_data$slope <- trends[[county]]
+            plot_data <- rbind(plot_data, county_data)
+        }
+    }
+    
+    ggplot(plot_data, aes(x = Year, y = Count, color = County)) +
+        geom_line() +
+        labs(title = "Trends of Amebiasis Disease by County (2001-2014)",
+             x = "Year", y = "Number of Cases") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        theme_minimal()
+    
+}, error = function(e) {
+    print(paste("An error occurred:", e$message))
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# (b) What can you infer from your findings?
+# Is the trend of total infected cases is different from that of male/female infected?
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(broom)  # Ensure broom is loaded for tidy()
+
+# Load the dataset
+data <- read_excel("C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx")
+
+# Filter for Amebiasis cases and aggregate data by Year and Sex, summing the cases
+annual_cases_by_gender <- data %>%
+  filter(Disease == "Amebiasis") %>%
+  group_by(Year, Sex) %>%
+  summarise(Total_Cases = sum(Count), .groups = 'drop')
+
+# Plotting the trends by gender
+ggplot(annual_cases_by_gender, aes(x = Year, y = Total_Cases, color = Sex)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Annual Amebiasis Cases by Gender (2001-2014)",
+       x = "Year",
+       y = "Total Cases") +
+  theme_minimal()
+
+# Perform linear regression for each category to analyze trends
+trends_analysis <- annual_cases_by_gender %>%
+  group_by(Sex) %>%
+  do(tidy(lm(Total_Cases ~ Year, data = .)))
+
+# Output the regression analysis results
+print(trends_analysis)
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# (b).3 Is the trend periodic, random, or unspecified?
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(forecast)  # For acf plot
+library(tseries)   # For runs test
+
+# Load the dataset
+data <- read_excel("C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx")
+
+# Filter for Amebiasis cases and aggregate data by Year
+annual_cases <- data %>%
+  filter(Disease == "Amebiasis", Sex == "Total") %>%
+  group_by(Year) %>%
+  summarise(Total_Cases = sum(Count), .groups = 'drop')
+
+# Creating a lagged column for the Random Walk Model
+annual_cases <- annual_cases %>%
+  mutate(Lagged_Cases = lag(Total_Cases, 1))
+
+# Remove NA values that result from lagging (typically the first row)
+annual_cases <- annual_cases %>%
+  filter(!is.na(Lagged_Cases))
+
+# Plotting the Autocorrelation Function
+acf(annual_cases$Total_Cases, main = "Autocorrelation Function for Amebiasis Cases")
+
+# Fit the Random Walk Model
+fit_random_walk <- lm(Total_Cases ~ Lagged_Cases, data = annual_cases)
+summary(fit_random_walk)
+
+# Conduct a Runs Test to check for randomness
+runs_test <- runs.test(as.factor(annual_cases$Total_Cases > median(annual_cases$Total_Cases)))
+print(runs_test)
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Q2: In the year of 2005, which county had the highest rate of infected females for HIV?
+# Q2.a How to extract suitable subsets of data?
+
+library(readxl)
+library(dplyr)
+
+# Load the dataset
+data <- read_excel("C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx")
+
+# Filter data for HIV, the year 2005, and females
+filtered_data <- data %>%
+  filter(Disease == "HIV", Year == 2005, Sex == "Female")
+
+# Calculate the rate of infection per 100,000 population
+filtered_data <- filtered_data %>%
+  mutate(Rate = (Count / Population) * 100000)
+
+# Identify the county with the highest rate
+highest_rate_county <- filtered_data %>%
+  arrange(desc(Rate)) %>%
+  top_n(1, Rate)
+
+# Print the result
+print(highest_rate_county)
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Q2.C Is the highest rate of infected associated with the largest population?
+
+# Assuming you have a DataFrame named female_hiv_2005 that includes the County, Rate, and Population
+# Sorted to find the county with the highest rate
+highest_rate_county <- female_hiv_2005 %>%
+  arrange(desc(Rate)) %>%
+  slice(1)
+
+# Find if this county has the largest population
+largest_population_county <- female_hiv_2005 %>%
+  arrange(desc(Population)) %>%
+  slice(1)
+
+# Compare the two results
+print(highest_rate_county)
+print(largest_population_county)
+
+# Optional: Correlation analysis across all counties
+correlation_result <- cor(female_hiv_2005$Population, female_hiv_2005$Rate, use = "complete.obs")
+print(correlation_result)
+
+# Plotting the relationship for visual analysis
+library(ggplot2)
+ggplot(female_hiv_2005, aes(x = Population, y = Rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Relationship Between Population Size and HIV Rate",
+       x = "Population of Females",
+       y = "Rate of HIV Infection")
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Q3: In the year of 2010, which county had at least 10 infected cases for Malaria?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Malaria in the year 2010
+malaria_data_2010 <- data %>%
+    filter(Disease == "Malaria", Year == 2010)
+
+# Filter for counties with at least 10 cases
+counties_at_least_10_cases <- malaria_data_2010 %>%
+    filter(Count >= 10)
+
+# List the counties
+counties_list <- unique(counties_at_least_10_cases$County)
+
+# Output the results
+print(paste("Counties with at least 10 infected cases of Malaria in 2010:", paste(counties_list, collapse = ", ")))
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Q4: In the period of 2010 - 2012, which county had at NO infected case for Tuberculosis?
+# Q4.a How to extract suitable subsets of data?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Tuberculosis between 2010 and 2012
+tb_data_2010_2012 <- data %>%
+    filter(Disease == "Tuberculosis", Year >= 2010, Year <= 2012)
+
+# Aggregate data to sum up cases by county over the period
+tb_aggregated <- tb_data_2010_2012 %>%
+    group_by(County) %>%
+    summarise(Count = sum(Count)) %>%
+    ungroup()
+
+# Identify counties with zero cases
+counties_no_cases <- tb_aggregated %>%
+    filter(Count == 0) %>%
+    pull(County)
+
+# Output the results
+print(paste("Counties with no infected cases of Tuberculosis from 2010 to 2012:", paste(counties_no_cases, collapse = ", ")))
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Q4.b What is the ratio of counties with at-least-10/NO case to the other counties?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Example disease and year (adjust as needed)
+disease <- "Tuberculosis"
+year <- 2012
+
+# Filter the data for the specific disease and year
+disease_data <- data %>%
+    filter(Disease == disease, Year == year)
+
+# Aggregate the data by county, summing up the cases
+aggregated_data <- disease_data %>%
+    group_by(County) %>%
+    summarise(Count = sum(Count)) %>%
+    ungroup()
+
+# Identify counties with at least 10 cases
+counties_at_least_10 <- aggregated_data %>%
+    filter(Count >= 10) %>%
+    pull(County)
+
+# Identify counties with no cases
+counties_no_cases <- aggregated_data %>%
+    filter(Count == 0) %>%
+    pull(County)
+
+# Calculate the ratio
+if (length(counties_no_cases) > 0) {  # Ensure no division by zero
+    ratio <- length(counties_at_least_10) / length(counties_no_cases)
+} else {
+    ratio <- "Undefined (No counties with zero cases)"
+}
+
+# Output results
+print(paste("Counties with at least 10 cases:", paste(counties_at_least_10, collapse = ", ")))
+print(paste("Counties with no cases:", paste(counties_no_cases, collapse = ", ")))
+print(paste("Ratio of counties with at least 10 cases to those with no cases:", ratio))
+
+# To compare with other counties, calculate the total number of counties
+total_counties <- n_distinct(aggregated_data$County)
+print(paste("Total number of counties analyzed:", total_counties))
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Q4.c Is the higher (or lower) number of infected case associated with the larger (or smaller) population?
+
+# Load required libraries
+library(readxl)
+library(dplyr)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease (2) 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Tuberculosis cases from 2010 to 2012
+tb_data_2010_2012 <- data %>%
+  filter(Year >= 2010 & Year <= 2012 & Disease == "Tuberculosis")
+
+# Aggregate the data by 'County' and 'Year', summing up the 'Count' across all genders
+tb_aggregated <- tb_data_2010_2012 %>%
+  group_by(County, Year) %>%
+  summarise(Count = sum(Count)) %>%
+  ungroup()
+
+# Aggregate the data by 'County' to get the total number of cases from 2010 to 2012
+tb_aggregated_sum <- tb_aggregated %>%
+  group_by(County) %>%
+  summarise(Count = sum(Count))
+
+# Get population data from the dataset for the same period
+population_data <- data %>%
+  select(County, Population) %>%
+  distinct()
+
+# Merge population data with the aggregated Tuberculosis data
+tb_merged <- merge(tb_aggregated_sum, population_data, by = "County", all.x = TRUE)
+
+# Perform correlation analysis to determine if higher number of infected cases is associated with larger population
+correlation <- cor(tb_merged$Count, tb_merged$Population, use = "complete.obs")
+
+# Print the correlation result
+print(correlation)
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Q5: Over the whole period,
+# (a) What is the correlation (R) between the rates of Chlamydia and Salmonellosis diseases in California?
+(You are required to create a suitable plot to support the statistical
+analysis)
+
+# Load required libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease (2) 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for California and for Chlamydia and Salmonellosis diseases
+california_data <- data %>%
+    filter(County == "California" & Disease %in% c("Chlamydia", "Salmonellosis"))
+
+# Aggregate the data by 'Year' and 'Disease', summing up the 'Rate'
+california_aggregated <- california_data %>%
+    group_by(Year, Disease) %>%
+    summarise(Rate = sum(Rate)) %>%
+    ungroup()
+
+# Separate the data for Chlamydia and Salmonellosis
+chlamydia_data <- california_aggregated %>%
+    filter(Disease == "Chlamydia") %>%
+    select(Year, Rate) %>%
+    rename(Chlamydia_Rate = Rate)
+
+salmonellosis_data <- california_aggregated %>%
+    filter(Disease == "Salmonellosis") %>%
+    select(Year, Rate) %>%
+    rename(Salmonellosis_Rate = Rate)
+
+# Merge the data on 'Year'
+merged_data <- merge(chlamydia_data, salmonellosis_data, by = "Year")
+
+# Perform correlation analysis
+correlation <- cor(merged_data$Chlamydia_Rate, merged_data$Salmonellosis_Rate, use = "complete.obs")
+
+# Print the correlation result
+print(correlation)
+
+# Create a scatter plot with a regression line
+ggplot(merged_data, aes(x = Chlamydia_Rate, y = Salmonellosis_Rate)) +
+    geom_point(color = "blue") +
+    geom_smooth(method = "lm", color = "red") +
+    labs(title = "Correlation between Rates of Chlamydia and Salmonellosis in California",
+         x = "Chlamydia Rate",
+         y = "Salmonellosis Rate") +
+    theme_minimal()
+ 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# (b) What can you infer from your findings?
+# - Is the analysis affected by outliers?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Filter data for California, Chlamydia, and Salmonellosis
+california_data <- data %>%
+    filter(County == "California", Disease %in% c("Chlamydia", "Salmonellosis")) %>%
+    select(Year, Disease, Rate)
+
+# Identify duplicates and summarize duplicates by taking the mean
+california_data <- california_data %>%
+    group_by(Year, Disease) %>%
+    summarize(Rate = mean(Rate, na.rm = TRUE), .groups = 'drop')
+
+# Reshape data to wide format to have rates of Chlamydia and Salmonellosis in separate columns
+wide_data <- california_data %>%
+    pivot_wider(names_from = Disease, values_from = Rate) %>%
+    rename(Chlamydia_Rate = Chlamydia, Salmonellosis_Rate = Salmonellosis)
+
+# Ensure data is numeric
+wide_data <- wide_data %>%
+    mutate(Chlamydia_Rate = as.numeric(Chlamydia_Rate),
+           Salmonellosis_Rate = as.numeric(Salmonellosis_Rate))
+
+# Plot the relationship with labels to identify outliers
+ggplot(wide_data, aes(x = Chlamydia_Rate, y = Salmonellosis_Rate)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "blue") +
+    geom_text(aes(label = Year), vjust = -0.5) +
+    labs(title = "Correlation Between Chlamydia and Salmonellosis Rates in California",
+         x = "Chlamydia Rate",
+         y = "Salmonellosis Rate") +
+    theme_minimal()
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Q6: Over the whole period,
+#(a) Are the rates of Dengue disease in San Diego and in San Francisco statistically different?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease (2) 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Dengue cases in San Diego and San Francisco
+dengue_sd <- data %>%
+    filter(Disease == "Dengue" & County == "San Diego")
+
+dengue_sf <- data %>%
+    filter(Disease == "Dengue" & County == "San Francisco")
+
+# Assuming the 'Rate' column exists and contains the disease rate per 100,000 population
+rate_sd <- dengue_sd %>%
+    filter(!is.na(Rate)) %>%
+    pull(Rate)
+
+rate_sf <- dengue_sf %>%
+    filter(!is.na(Rate)) %>%
+    pull(Rate)
+
+# Perform a two-sample t-test
+t_test_result <- t.test(rate_sd, rate_sf, var.equal = FALSE)  # Welch's t-test
+
+# Print the results
+cat("T-test result: statistic =", t_test_result$statistic, ", p-value =", t_test_result$p.value, "\n")
+if (t_test_result$p.value < 0.05) {
+    cat("There is a statistically significant difference in Dengue rates between San Diego and San Francisco.\n")
+} else {
+    cat("There is no statistically significant difference in Dengue rates between San Diego and San Francisco.\n")
+}
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Q6. How many samples in each set?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Dengue cases in San Diego and San Francisco
+dengue_sd <- data %>%
+  filter(Disease == "Dengue", County == "San Diego")
+
+dengue_sf <- data %>%
+  filter(Disease == "Dengue", County == "San Francisco")
+
+# Count the number of samples in each set
+count_sd <- nrow(dengue_sd)  # Number of samples in San Diego
+count_sf <- nrow(dengue_sf)  # Number of samples in San Francisco
+
+# Output the results
+cat("Number of samples in San Diego:", count_sd, "\n")
+cat("Number of samples in San Francisco:", count_sf, "\n")
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Q7: Over the whole periodM
+#(a) Are the rates of Cryptosporidiosis in California, Lake, San Diego, and San Francisco statistically different from each other (ignoring the year)?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease (2) 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Cryptosporidiosis cases in California, Lake, San Diego, and San Francisco
+crypto_data <- data %>%
+    filter(Disease == "Cryptosporidiosis" & County %in% c("California", "Lake", "San Diego", "San Francisco"))
+
+# Check the structure of the data to ensure 'Rate' column exists
+str(crypto_data)
+
+# Perform ANOVA to compare rates between counties
+anova_result <- aov(Rate ~ County, data = crypto_data)
+
+# Print the summary of the ANOVA result
+summary(anova_result)
+
+# Perform Tukey's HSD test for pairwise comparisons if ANOVA is significant
+tukey_result <- TukeyHSD(anova_result)
+
+# Print the Tukey's HSD result
+print(tukey_result)
+
+# Plot the rates of Cryptosporidiosis by County
+ggplot(crypto_data, aes(x = County, y = Rate)) +
+  geom_boxplot() +
+  labs(title = "Rates of Cryptosporidiosis by County",
+       x = "County",
+       y = "Rate") +
+  theme_minimal()
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# (a) Which of these counties are exactly different from each other? Which test did you use to
+determine this?
+
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease (2) 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Cryptosporidiosis cases in California, Lake, San Diego, and San Francisco
+crypto_data <- data %>%
+    filter(Disease == "Cryptosporidiosis" & County %in% c("California", "Lake", "San Diego", "San Francisco"))
+
+# Perform ANOVA to compare rates between counties
+anova_result <- aov(Rate ~ County, data = crypto_data)
+
+# Print the summary of the ANOVA result
+anova_summary <- summary(anova_result)
+print(anova_summary)
+
+# Extract the p-value from the ANOVA summary
+p_value <- anova_summary[[1]][["Pr(>F)"]][1]
+
+# Perform Tukey's HSD test for pairwise comparisons if ANOVA is significant
+if (p_value < 0.05) {
+    tukey_result <- TukeyHSD(anova_result)
+    print(tukey_result)
+    
+    # Extract significant pairwise comparisons
+    significant_pairs <- tukey_result$County[tukey_result$County[, "p adj"] < 0.05, ]
+    print(significant_pairs)
+}
+
+# Plot the rates of Cryptosporidiosis by County
+ggplot(crypto_data, aes(x = County, y = Rate)) +
+    geom_boxplot() +
+    labs(title = "Rates of Cryptosporidiosis by County",
+         x = "County",
+         y = "Rate") +
+    theme_minimal()
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# (a) Create a suitable plot to indicate the changes in the rate of Cryptosporidiosis in these four counties.
+
+# Load necessary libraries
+library(readxl)
+library(ggplot2)
+library(dplyr)
+
+# Define the file path
+file_path <- "C:/Users/khana/Desktop/Infectious Disease (2) 2001-2014.xlsx"
+
+# Load the dataset
+data <- read_excel(file_path)
+
+# Filter the data for Cryptosporidiosis in the specified counties
+crypto_data <- data %>%
+    filter(Disease == "Cryptosporidiosis",
+           County %in% c("California", "Lake", "San Diego", "San Francisco"))
+
+# Ensure data is sorted by year to make plotting easier
+crypto_data <- crypto_data %>%
+    arrange(Year)
+
+# Create a line plot
+ggplot(crypto_data, aes(x = Year, y = Rate, color = County, group = County)) +
+    geom_line() +
+    geom_point() +  # Add markers to the line
+    labs(title = "Rates of Cryptosporidiosis in Four Counties Over Time",
+         x = "Year",
+         y = "Rate of Cryptosporidiosis") +
+    theme_minimal() +
+    theme(legend.title = element_text(size = 10),
+          legend.text = element_text(size = 8),
+          plot.title = element_text(hjust = 0.5, size = 14),
+          axis.title.x = element_text(size = 12),
+          axis.title.y = element_text(size = 12),
+          axis.text.x = element_text(size = 10),
+          axis.text.y = element_text(size = 10)) +
+    scale_color_manual(values = c("California" = "blue", "Lake" = "red", 
+                                  "San Diego" = "green", "San Francisco" = "purple"))
+
