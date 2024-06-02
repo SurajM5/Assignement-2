@@ -1,3 +1,17 @@
+#Packages to be installed.
+install.packages("readxl")
+install.packages("ggplot2")
+install.packages("dplyr")
+install.packages("broom")
+install.packages("tseries")
+install.packages("tidyverse")
+install.packages("scales")
+install.packages("plotly")
+install.packages("forecast")
+install.packages("tidyr")
+install.packages(("viridis")
+
+
 #(a) Which county had the upward trend of Amebiasis disease regardless of gender? (You are required to create a suitable plot to support the statistical analysis)
 # How to extract suitable subsets of data?
 
